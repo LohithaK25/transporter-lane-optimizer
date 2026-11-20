@@ -169,7 +169,7 @@ class TransporterApiIntegrationTest {
                 .content("""
                     {"maxTransporters": 1}
                     """))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.message")
                         .value(containsString(
                                 "No transporter quote available for lane 2"
