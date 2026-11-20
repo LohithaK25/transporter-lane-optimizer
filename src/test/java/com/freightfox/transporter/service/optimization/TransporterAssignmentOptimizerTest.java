@@ -7,6 +7,7 @@ import com.freightfox.transporter.exception.OptimizationException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -134,6 +135,35 @@ class TransporterAssignmentOptimizerTest {
                         List.of(lane),
                         quotes,
                         0
+                )
+        );
+    }
+
+    @Test
+    void rejectsMoreThanSixteenActiveTransporters() {
+
+        Lane lane = new Lane(1L, "A", "B");
+
+        List<LaneQuote> quotes = new ArrayList<>();
+
+        for (long id = 1; id <= 17; id++) {
+
+            Transporter transporter =
+                    new Transporter(id, "T" + id);
+
+            quotes.add(new LaneQuote(
+                    lane,
+                    transporter,
+                    new BigDecimal("100")
+            ));
+        }
+
+        assertThrows(
+                OptimizationException.class,
+                () -> optimizer.optimize(
+                        List.of(lane),
+                        quotes,
+                        3
                 )
         );
     }

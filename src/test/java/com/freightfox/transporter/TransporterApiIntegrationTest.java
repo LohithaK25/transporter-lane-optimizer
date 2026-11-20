@@ -175,4 +175,124 @@ class TransporterApiIntegrationTest {
                                 "No transporter quote available for lane 2"
                         )));
     }
+
+    @Test
+    void rejectsDuplicateLaneIds() throws Exception {
+
+        String body = """
+            {
+            "lanes": [
+                {"id": 1, "origin": "Mumbai", "destination": "Delhi"},
+                {"id": 1, "origin": "Pune", "destination": "Hyderabad"}
+            ],
+            "transporters": [
+                {
+                "id": 1,
+                "name": "T1",
+                "laneQuotes": [
+                    {"laneId": 1, "quote": 5000}
+                ]
+                }
+            ]
+            }
+            """;
+
+        mockMvc.perform(post("/api/v1/transporters/input")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value(containsString("Duplicate lane ID: 1")));
+    }
+
+    @Test
+    void rejectsDuplicateTransporterIds() throws Exception {
+
+        String body = """
+            {
+            "lanes": [
+                {"id": 1, "origin": "Mumbai", "destination": "Delhi"}
+            ],
+            "transporters": [
+                {"id": 1, "name": "T1", "laneQuotes": []},
+                {"id": 1, "name": "T2", "laneQuotes": []}
+            ]
+            }
+            """;
+
+        mockMvc.perform(post("/api/v1/transporters/input")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value(containsString("Duplicate transporter ID: 1")));
+    }
+
+    @Test
+    void rejectsDuplicateQuotesForSameLaneAndTransporter()
+            throws Exception {
+
+        String body = """
+            {
+            "lanes": [
+                {"id": 1, "origin": "Mumbai", "destination": "Delhi"}
+            ],
+            "transporters": [
+                {
+                "id": 1,
+                "name": "T1",
+                "laneQuotes": [
+                    {"laneId": 1, "quote": 5000},
+                    {"laneId": 1, "quote": 6000}
+                ]
+                }
+            ]
+            }
+            """;
+
+        mockMvc.perform(post("/api/v1/transporters/input")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value(containsString("Duplicate quote for lane 1")));
+    }
+
+    @Test
+    void successfullyReplacesPreviouslyStoredDataset()
+            throws Exception {
+
+        String replacement = """
+            {
+            "lanes": [
+                {"id": 10, "origin": "Chennai", "destination": "Hyderabad"}
+            ],
+            "transporters": [
+                {
+                "id": 8,
+                "name": "Replacement T8",
+                "laneQuotes": [
+                    {"laneId": 10, "quote": 700}
+                ]
+                }
+            ]
+            }
+            """;
+
+        mockMvc.perform(post("/api/v1/transporters/input")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(replacement))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/transporters/assignment")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"maxTransporters": 1}
+                    """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalCost").value(700.0))
+                .andExpect(jsonPath("$.assignments.length()").value(1))
+                .andExpect(jsonPath("$.assignments[0].laneId").value(10))
+                .andExpect(jsonPath("$.selectedTransporters[0]").value(8));
+    }
 }
