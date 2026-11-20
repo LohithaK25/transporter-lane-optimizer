@@ -1,6 +1,25 @@
-# FreightFox Transport Optimizer
+# FreightFox Transporter Assignment API
 
 A Spring Boot REST API that stores trade lanes and transporter quotes, then computes a cost-aware assignment with full lane coverage and a configurable cap on the number of distinct transporters used.
+
+## Live deployment
+
+The API is deployed as a Docker service on Render and uses a managed PostgreSQL database hosted on Neon.
+
+| Resource | URL |
+|---|---|
+| API base URL | <https://freightfox-transporter-api.onrender.com> |
+| API information | <https://freightfox-transporter-api.onrender.com/> |
+| Swagger UI | <https://freightfox-transporter-api.onrender.com/swagger-ui/index.html> |
+| OpenAPI specification | <https://freightfox-transporter-api.onrender.com/v3/api-docs> |
+| Health check | <https://freightfox-transporter-api.onrender.com/actuator/health> |
+| GitHub repository | <https://github.com/LohithaK25/freightfox-transporter-optimizer> |
+
+The root endpoint (`GET /`) returns API information and links to the documentation and health endpoint. The health endpoint reports the application status and its liveness/readiness groups.
+
+The deployed service was verified against the hosted database. The supplied nine-lane dataset returned a total cost of **134,876**, with selected transporter IDs **[1, 4, 6]**. The same result was verified locally before deployment.
+
+> **Hosted demo note:** the service may take some time to respond after an idle period, depending on the hosting plan. The input endpoint replaces the dataset currently stored in the database. Do not submit sensitive or production data to this public demo.
 
 ## Features
 
@@ -10,7 +29,7 @@ A Spring Boot REST API that stores trade lanes and transporter quotes, then comp
 - Maximize the number of distinct transporters used up to the requested limit, then minimize total quote cost among assignments that achieve that utilization.
 - Use `BigDecimal` for quote and total-cost calculations.
 - Return deterministic assignments ordered by lane ID, with selected transporter IDs ordered consistently.
-- Generate OpenAPI documentation and an interactive Swagger UI.
+- Provide a root API information endpoint, health endpoint, OpenAPI documentation, and interactive Swagger UI.
 - Run integration tests against an isolated H2 database; run the application against PostgreSQL.
 
 ## Technology
@@ -19,11 +38,12 @@ A Spring Boot REST API that stores trade lanes and transporter quotes, then comp
 - Spring Boot 4.2.0
 - Spring MVC and Jakarta Bean Validation
 - Spring Data JPA / Hibernate
-- PostgreSQL 17 for local development
+- PostgreSQL 17 for local development; Neon-managed PostgreSQL for the deployed service
 - H2 for automated tests
 - Maven Wrapper
-- Docker Compose
+- Docker and Docker Compose
 - springdoc-openapi / Swagger UI
+- Render for container hosting
 
 ## Architecture
 
@@ -32,7 +52,7 @@ The application follows a layered structure:
 ```text
 com.freightfox.transporter
 ├── api
-│   ├── controller       # HTTP endpoints
+│   ├── controller       # Root, input and assignment HTTP endpoints
 │   └── dto              # Request and response contracts
 ├── config               # OpenAPI configuration
 ├── domain
@@ -47,9 +67,11 @@ com.freightfox.transporter
 
 ### Request flow
 
-**Input:** Controller validates the request DTO, then `TransporterInputService` performs cross-record validation and replaces the persisted dataset in a transaction. Quotes are removed before their parent records so dependent data can be safely replaced. Invalid input is rejected before the old dataset is deleted.
+**Input:** The input controller validates the request DTO, then `TransporterInputService` performs cross-record validation and replaces the persisted dataset in a transaction. Quotes are removed before their parent records so dependent data can be safely replaced. Invalid input is rejected before the old dataset is deleted.
 
 **Assignment:** `TransporterAssignmentController` calls `TransporterAssignmentService`, which reads the lane and quote data in a read-only `REPEATABLE_READ` transaction. The optimizer computes the assignments, and the service maps the result into the API response DTO.
+
+**Root and health:** `RootController` exposes a lightweight API information response at `GET /`. Spring Boot Actuator exposes the health endpoint at `/actuator/health`.
 
 ## Optimization approach
 
@@ -79,9 +101,37 @@ There are at most `2^T` transporter-use masks. Each lane can transition through 
 
 ## API
 
-Base URL for local development: `http://localhost:8080`
+### Endpoint summary
 
-### 1. Submit input data
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Returns API name, status message, documentation path, health path, and write/assignment endpoint paths |
+| `POST` | `/api/v1/transporters/input` | Validates and replaces the stored lanes, transporters, and quotes |
+| `POST` | `/api/v1/transporters/assignment` | Computes a cost-aware assignment using the requested transporter limit |
+| `GET` | `/actuator/health` | Returns application health, including liveness/readiness groups |
+| `GET` | `/swagger-ui/index.html` | Interactive API documentation |
+| `GET` | `/v3/api-docs` | OpenAPI specification in JSON format |
+
+### 1. API information
+
+`GET /`
+
+Example response:
+
+```json
+{
+  "service": "FreightFox Transporter Assignment API",
+  "message": "API is running.",
+  "documentation": "/swagger-ui/index.html",
+  "health": "/actuator/health",
+  "endpoints": {
+    "submitInput": "POST /api/v1/transporters/input",
+    "assignment": "POST /api/v1/transporters/assignment"
+  }
+}
+```
+
+### 2. Submit input data
 
 `POST /api/v1/transporters/input`
 
@@ -115,7 +165,7 @@ Success response (`200 OK`):
 
 The endpoint **replaces** the currently stored dataset; it does not append to it. Validation failures return `400 Bad Request`. An invalid request must not partially replace the previously stored data.
 
-### 2. Get optimized assignments
+### 3. Get optimized assignments
 
 `POST /api/v1/transporters/assignment`
 
@@ -163,10 +213,11 @@ If no feasible full-coverage assignment exists, the API returns `422 Unprocessab
 |---|---|
 | `200` | Request completed successfully |
 | `400` | Invalid request, malformed JSON, or invalid input data |
+| `404` | Requested resource or route was not found |
 | `422` | No feasible assignment can be generated |
 | `500` | Unexpected server error; implementation returns a generic client message and logs the exception server-side |
 
-## Local setup
+## Run locally
 
 ### Prerequisites
 
@@ -211,8 +262,9 @@ Do not use local development credentials in a deployed environment. Supply produ
 
 The API starts on port `8080`.
 
-### 4. Open Swagger UI
+### 4. Open the local endpoints
 
+- API information: <http://localhost:8080/>
 - Swagger UI: <http://localhost:8080/swagger-ui/index.html>
 - OpenAPI JSON: <http://localhost:8080/v3/api-docs>
 - Actuator health: <http://localhost:8080/actuator/health>
@@ -223,7 +275,7 @@ The API starts on port `8080`.
 .\mvnw.cmd clean test
 ```
 
-The tests use the `test` profile and an in-memory H2 database; they do not require the PostgreSQL container.
+The tests use the `test` profile and an in-memory H2 database; they do not require the PostgreSQL container. The latest verified test run contains **17 tests, with zero failures, errors, or skips**.
 
 ## Sample data and reproducing the supplied CSV result
 
@@ -259,36 +311,71 @@ With that input submitted and `maxTransporters` set to `3`, the expected optimiz
 | 9 | 6 | 37,864 |
 | **Total** |  | **134,876** |
 
-From PowerShell, submit the complete input file and then request an assignment:
+### Test against the local API
+
+Start the local API, then run:
 
 ```powershell
+$baseUrl = "http://localhost:8080"
 $inputBody = Get-Content -Raw .\sample-data\transporter-input.json
 
 Invoke-RestMethod `
-  -Uri "http://localhost:8080/api/v1/transporters/input" `
+  -Uri "$baseUrl/api/v1/transporters/input" `
   -Method Post `
   -ContentType "application/json" `
   -Body $inputBody
 
 Invoke-RestMethod `
-  -Uri "http://localhost:8080/api/v1/transporters/assignment" `
+  -Uri "$baseUrl/api/v1/transporters/assignment" `
   -Method Post `
   -ContentType "application/json" `
   -Body '{"maxTransporters":3}'
 ```
 
-> **Important:** submitting this endpoint replaces whatever dataset is currently stored. Use the sample file when you intentionally want to load the supplied CSV data.
+### Test against the deployed API
 
-## Production hardening considerations
+The public demo uses the same endpoints. Run these commands from the project root:
 
-Before using this service in production:
+```powershell
+$baseUrl = "https://freightfox-transporter-api.onrender.com"
+$inputBody = Get-Content -Raw .\sample-data\transporter-input.json
 
-- Replace `spring.jpa.hibernate.ddl-auto=update` with controlled schema migrations (for example, Flyway or Liquibase) and a validation-oriented Hibernate setting.
-- Keep database credentials outside source control and use managed secrets.
-- Add authentication and authorization to both write and assignment endpoints.
-- Restrict request sizes and validate operational limits based on measured workload.
-- Add structured logs, metrics, tracing, database backups, and deployment health checks.
-- Revisit the 16-transporter exact-DP bound if production workloads can exceed it; choose a scalable solver or optimization service.
+# WARNING: This replaces the dataset currently stored in the hosted database.
+Invoke-RestMethod `
+  -Uri "$baseUrl/api/v1/transporters/input" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $inputBody
+
+Invoke-RestMethod `
+  -Uri "$baseUrl/api/v1/transporters/assignment" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body '{"maxTransporters":3}'
+```
+
+> **Important:** submitting the input endpoint replaces whatever dataset is currently stored. Use the sample file only when you intentionally want to load the supplied assignment data. The deployed demo is public; do not submit sensitive operational data.
+
+## Deployment
+
+The deployed setup consists of:
+
+- **GitHub:** source repository and `main` branch.
+- **Render:** builds the Dockerfile and runs the Spring Boot web service.
+- **Neon:** managed PostgreSQL database used by the deployed API.
+
+The application reads deployment-specific settings from environment variables:
+
+| Variable | Purpose |
+|---|---|
+| `PORT` | HTTP port supplied by the hosting platform |
+| `DB_URL` | PostgreSQL JDBC connection URL |
+| `DB_USERNAME` | Database role/user |
+| `DB_PASSWORD` | Database password |
+| `DB_DDL_AUTO` | Hibernate schema handling mode |
+| `DB_POOL_SIZE` | HikariCP maximum connection pool size |
+
+Database credentials are configured in the hosting platform and must not be committed to the repository. The deployed database uses SSL. The application binds to `0.0.0.0` and uses the platform-provided `PORT` value.
 
 ## Run with Docker Compose
 
@@ -301,5 +388,36 @@ Before using this service in production:
 
 Build the Spring Boot image and start the API and PostgreSQL:
 
-```bash
+```powershell
 docker compose up --build -d
+docker compose ps
+```
+
+The API is available at <http://localhost:8080> and PostgreSQL is published on host port `5433`.
+
+### Inspect logs and health
+
+```powershell
+docker compose logs -f api
+Invoke-RestMethod http://localhost:8080/actuator/health
+```
+
+### Stop the application
+
+```powershell
+docker compose down
+```
+
+The named PostgreSQL volume is preserved by `docker compose down`. To remove the containers and permanently delete the local database volume as well, use `docker compose down -v`.
+
+## Production hardening considerations
+
+Before using this service in production:
+
+- Replace `spring.jpa.hibernate.ddl-auto=update` with controlled schema migrations (for example, Flyway or Liquibase) and a validation-oriented Hibernate setting.
+- Keep database credentials outside source control and use managed secrets.
+- Add authentication and authorization to both write and assignment endpoints.
+- Restrict request sizes and validate operational limits based on measured workload.
+- Add structured logs, metrics, tracing, database backups, and deployment health checks.
+- Revisit the 16-transporter exact-DP bound if production workloads can exceed it; choose a scalable solver or optimization service.
+- Add a proper favicon or leave `/favicon.ico` unmapped; an unmapped static resource correctly returns `404 Not Found` rather than an internal server error.
