@@ -1,4 +1,4 @@
-# FreightFox Transporter Assignment API
+# Transporter Lane Optimizer
 
 A Spring Boot REST API that stores trade lanes and transporter quotes, then computes a cost-aware assignment with full lane coverage and a configurable cap on the number of distinct transporters used.
 
