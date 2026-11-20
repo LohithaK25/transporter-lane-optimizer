@@ -6,6 +6,7 @@ import com.freightfox.transporter.domain.repository.LaneQuoteRepository;
 import com.freightfox.transporter.domain.repository.LaneRepository;
 import com.freightfox.transporter.service.optimization.TransporterAssignmentOptimizer;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -27,7 +28,10 @@ public class TransporterAssignmentService {
         this.optimizer = optimizer;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(
+            readOnly = true,
+            isolation = Isolation.REPEATABLE_READ
+    )
     public AssignmentResponse getOptimizedAssignment(int maxTransporters) {
 
         var lanes = laneRepository.findAll();
