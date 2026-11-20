@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -294,5 +295,28 @@ class TransporterApiIntegrationTest {
                 .andExpect(jsonPath("$.assignments.length()").value(1))
                 .andExpect(jsonPath("$.assignments[0].laneId").value(10))
                 .andExpect(jsonPath("$.selectedTransporters[0]").value(8));
+    }
+
+    @Test
+    void rootReturnsApiInformation() throws Exception {
+
+        mockMvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.service")
+                        .value("FreightFox Transporter Assignment API"))
+                .andExpect(jsonPath("$.documentation")
+                        .value("/swagger-ui/index.html"))
+                .andExpect(jsonPath("$.health")
+                        .value("/actuator/health"));
+    }
+
+    @Test
+    void missingResourceReturnsNotFound() throws Exception {
+
+        mockMvc.perform(get("/favicon.ico"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value("error"))
+                .andExpect(jsonPath("$.message")
+                        .value("The requested resource was not found."));
     }
 }
