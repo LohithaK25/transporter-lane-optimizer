@@ -290,3 +290,16 @@ Before using this service in production:
 - Add structured logs, metrics, tracing, database backups, and deployment health checks.
 - Revisit the 16-transporter exact-DP bound if production workloads can exceed it; choose a scalable solver or optimization service.
 
+## Run with Docker Compose
+
+### Prerequisites
+
+- Docker Desktop
+- Docker Compose v2
+
+### Start the application
+
+Build the Spring Boot image and start the API and PostgreSQL:
+
+```bash
+docker compose up --build -d

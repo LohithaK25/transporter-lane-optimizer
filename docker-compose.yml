@@ -16,5 +16,24 @@ services:
       timeout: 3s
       retries: 10
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: freightfox-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+      DB_URL: jdbc:postgresql://postgres:5432/freightfox
+      DB_USERNAME: freightfox
+      DB_PASSWORD: local_dev_password
+      DB_DDL_AUTO: update
+      DB_POOL_SIZE: "5"
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
 volumes:
   freightfox_pgdata:
